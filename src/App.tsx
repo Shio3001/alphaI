@@ -28,7 +28,6 @@ class ShapePointPostionClass {
 
   clickViewPos: TypePosition;
   clickMousePos: TypePosition;
-  moveFlag: boolean;
 
   constructor(nx = 0, ny = 0) {
     this.x = nx;
@@ -36,7 +35,6 @@ class ShapePointPostionClass {
 
     this.clickViewPos = { x: null, y: null };
     this.clickMousePos = { x: null, y: null };
-    this.moveFlag = false;
   }
 }
 
@@ -100,33 +98,40 @@ const getMousePosition = (
 };
 
 const markerText = ["左上", "右上", "右下", "左下"];
+const markerMoveFlag = [false, false, false, false];
 
-const Marker = (props: { postion: ShapePointPostionClass; index: number }) => {
+const Marker = (props: { postion: ShapePointPostionClass; index: number; editAreaRef: any }) => {
   const AppContextValue = useContext(AppContext);
 
-  const onClick = () => {
+  const onMouseDown = (event: any) => {
     const dispatch: TypeActionShapePostionClickPush = {
       type: "clickPush",
       targetIndex: props.index,
-      clickViewPos: { x: 0, y: 0 },
-      clickMousePos: { x: 0, y: 0 },
+      clickViewPos: { x: props.postion.x, y: props.postion.y },
+      clickMousePos: getMousePosition(event, props.editAreaRef),
     };
     AppContextValue.dispatchShapePostion(dispatch);
   };
-  const onMove = () => {
-    if (!props.postion.moveFlag) {
+  const onMove = (event: any) => {
+    if (!markerMoveFlag[props.index]) {
+      // console.log("返送A", props.index, AppContextValue.shapePostion[props.index]);
       return;
     }
 
     const dispatch: TypeActionShapePostionClickMove = {
       type: "clickMove",
       targetIndex: props.index,
-      mousePos: { x: 0, y: 0 },
+      mousePos: getMousePosition(event, props.editAreaRef),
     };
     AppContextValue.dispatchShapePostion(dispatch);
   };
 
   const onUp = () => {
+    if (!markerMoveFlag[props.index]) {
+      // console.log("返送B", props.index);
+      return;
+    }
+
     const dispatch: TypeActionShapePostionClickUp = {
       type: "clickUp",
       targetIndex: props.index,
@@ -135,20 +140,22 @@ const Marker = (props: { postion: ShapePointPostionClass; index: number }) => {
   };
 
   useEffect(() => {
+    // console.log("構築")
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onMove);
+    window.addEventListener("mouseup", onUp);
     return () => {
+      // console.log("再構築");
       // イベントの設定解除
       // document.removeEventListener('click', countUp);
-      window.removeEventListener("mousemove", onUp);
-      window.addEventListener("mouseup", onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
     };
   }, []);
 
   return (
     <div
       className="marker"
-      onClick={onClick}
+      onMouseDown={onMouseDown}
       style={{ left: props.postion.x - markerSize / 2, top: props.postion.y - markerSize / 2, width: markerSize, height: markerSize }}
     >
       <span> {markerText[props.index]}</span>
@@ -156,15 +163,15 @@ const Marker = (props: { postion: ShapePointPostionClass; index: number }) => {
   );
 };
 
-const MarkerMap = () => {
+const MarkerMap = (props: any) => {
   const AppContextValue = useContext(AppContext);
 
-  console.log(AppContextValue.shapePostion.length);
+  // console.log(AppContextValue.shapePostion.length);
 
   return (
     <>
       {AppContextValue.shapePostion.map((output, index) => (
-        <Marker postion={output} index={index} key={index} />
+        <Marker editAreaRef={props.editAreaRef} postion={output} index={index} key={index} />
       ))}
     </>
   );
@@ -182,7 +189,7 @@ const ApplyImgaeButton = () => {
     image.onload = function () {
       const rawWidhth = image.naturalWidth;
       const rawHeight = image.naturalHeight;
-      console.log(rawWidhth, rawHeight);
+      // console.log(rawWidhth, rawHeight);
       AppContextValue.dispatchImageRawViewSize({ width: rawWidhth, height: rawHeight });
     };
     image.src = URL.createObjectURL(file);
@@ -204,7 +211,7 @@ const ViewImage = () => {
   const AppContextValue = useContext(AppContext);
 
   useEffect(() => {
-    console.log("ViewCanvas", AppContextValue.imageBaseURL);
+    // console.log("ViewCanvas", AppContextValue.imageBaseURL);
   }, [AppContextValue.imageBaseURL]);
 
   return (
@@ -218,9 +225,16 @@ const ViewImage = () => {
 
 const EditArea = () => {
   const AppContextValue = useContext(AppContext);
+
+  const editAreaRef = useRef(null);
+
   return (
-    <div className="editArea" style={{ width: AppContextValue.imageRawViewSize.viewWidth, height: AppContextValue.imageRawViewSize.viewHeight }}>
-      <MarkerMap />
+    <div
+      className="editArea"
+      ref={editAreaRef}
+      style={{ width: AppContextValue.imageRawViewSize.viewWidth, height: AppContextValue.imageRawViewSize.viewHeight }}
+    >
+      <MarkerMap editAreaRef={editAreaRef} />
     </div>
   );
 };
@@ -233,14 +247,40 @@ const App = () => {
     state: Array<ShapePointPostionClass>,
     action: TypeActionShapePostionClickPush | TypeActionShapePostionClickMove | TypeActionShapePostionSetup
   ) => {
+    const newState = [...state];
+
     if (action.type === "clickPush") {
       const naction = action as TypeActionShapePostionClickPush;
+      // console.log("clickPush", naction.targetIndex);
+      // console.log("clickPush", naction.clickMousePos);
+      markerMoveFlag[naction.targetIndex] = true;
+      newState[naction.targetIndex].clickViewPos = naction.clickViewPos;
+      newState[naction.targetIndex].clickMousePos = naction.clickMousePos;
+
+      console.log("nactionA", naction.targetIndex, naction, newState);
+
+      return newState;
     }
     if (action.type === "clickMove") {
       const naction = action as TypeActionShapePostionClickMove;
+      // console.log("clickMove", naction.targetIndex);
+
+      const mouseMoveX = naction.mousePos.x - state[naction.targetIndex].clickMousePos.x;
+      const mouseMoveY = naction.mousePos.y - state[naction.targetIndex].clickMousePos.y;
+      newState[naction.targetIndex].x = mouseMoveX + newState[naction.targetIndex].clickViewPos.x;
+      newState[naction.targetIndex].y = mouseMoveY + newState[naction.targetIndex].clickViewPos.y;
+      console.log("nactionB", naction.targetIndex, naction, newState);
+
+      return newState;
     }
     if (action.type === "clickUp") {
       const naction = action as TypeActionShapePostionClickUp;
+
+      markerMoveFlag[naction.targetIndex] = false;
+
+      console.log("nactionC", naction.targetIndex, naction, newState);
+
+      return newState;
     }
 
     if (action.type === "imageSetup") {
@@ -253,7 +293,9 @@ const App = () => {
         new ShapePointPostionClass(naction.width * 0.2, naction.height * 0.8),
       ];
 
-      console.log("posArray", posArray);
+      console.log("nactionA", posArray);
+
+      // console.log("posArray", posArray);
       setVisibleMarker(2);
 
       return posArray;
@@ -269,7 +311,7 @@ const App = () => {
   ]);
 
   const setImageRawViewSize = (state: TypeRawViewImageSize, action: TypeImageSize) => {
-    console.log("action", action);
+    // console.log("action", action);
 
     const maxWidthSize = getWindowSize()[0] * 0.9;
     const maxHeightSize = getWindowSize()[1] * 0.9;
@@ -280,7 +322,7 @@ const App = () => {
     const nwidth = action.width * reductionRate;
     const nheight = action.height * reductionRate;
 
-    console.log("rawWidth", action.width, "rawWeight", action.height, "viewWidth", nwidth, "viewHeight", nheight);
+    // console.log("rawWidth", action.width, "rawWeight", action.height, "viewWidth", nwidth, "viewHeight", nheight);
 
     dispatchShapePostion({ type: "imageSetup", width: nwidth, height: nheight });
 

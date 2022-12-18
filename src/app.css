@@ -3,6 +3,7 @@
 }
 .viewImage {
   position: absolute;
+  user-select: none;
 }
 
 .editArea {
