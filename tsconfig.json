@@ -4,7 +4,10 @@
     "noImplicitAny": true,
     "module": "es6",
     "target": "es6",
-    "allowJs": true
+    "allowJs": true,
+    "jsx": "react",
+    "moduleResolution": "node",
+    "resolveJsonModule": true
   },
-  "files": ["src/index.ts"]
+  "files": ["src/index.tsx"]
 }
